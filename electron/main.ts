@@ -690,6 +690,14 @@ function buildBackendEnv(): NodeJS.ProcessEnv {
     env.PLAYWRIGHT_BROWSERS_PATH = join(BACKEND_DIR, 'ms-playwright');
     env.KNOWE_BROWSER_HEADLESS = '1';
     env.KNOWE_VERSION = app.getVersion();
+    // [v1.0.33 SSL] macOS/Linux：PyInstaller 冻结的 Python 用 certifi 的 CA 列表（118 个），
+    //   缺系统钥匙串里的根 CA（尤其代理/VPN 注入的自签名 CA）→ CERTIFICATE_VERIFY_FAILED。
+    //   改用系统证书文件（macOS: /etc/ssl/cert.pem, Linux: /etc/ssl/certs/ca-certificates.crt）。
+    if (process.platform === 'darwin') {
+      env.SSL_CERT_FILE = '/etc/ssl/cert.pem';
+    } else if (process.platform === 'linux') {
+      env.SSL_CERT_FILE = '/etc/ssl/certs/ca-certificates.crt';
+    }
   }
   return env;
 }
