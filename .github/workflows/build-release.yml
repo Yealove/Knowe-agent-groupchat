@@ -120,6 +120,7 @@ jobs:
 
   publish-release:
     needs: [prepare-release, build]
+    if: always() && needs.prepare-release.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write

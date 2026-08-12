@@ -112,6 +112,7 @@ mac:
 linux:
   icon: build/icon.png
   category: Office
+  maintainer: "Hezhou Jiang <hezhou@knowe.app>"
   target:
     - target: AppImage
       arch:

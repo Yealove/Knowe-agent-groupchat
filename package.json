@@ -80,7 +80,10 @@
     "type": "git",
     "url": "https://github.com/HirezmingD/Knowe-agent-groupchat.git"
   },
-  "author": "Hezhou Jiang",
+  "author": {
+    "name": "Hezhou Jiang",
+    "email": "hezhou@knowe.app"
+  },
   "keywords": [
     "electron",
     "react",
