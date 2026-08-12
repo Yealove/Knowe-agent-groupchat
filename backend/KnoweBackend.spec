@@ -57,6 +57,7 @@ except Exception:  # pragma: no cover - 非 Windows 构建机
 # 按 spec 所在目录解析，故用 SPECPATH 推导而不是字面 'build/icon.ico'。
 # [v1.0.33 多端] Windows 用 .ico；mac/linux 后端是无窗口后台服务，不需要图标。
 import sys  # noqa: E402
+_ICON = os.path.join(SPECPATH, "..", "build", "icon.ico") if sys.platform == 'win32' else None
 
 # [v1.0.33 多端] 显式收集 certifi 的 cacert.pem（SSL 根证书），不依赖 PyInstaller hook。
 #   httpx 依赖 certifi 做 TLS 验证，漏了会报 CERTIFICATE_VERIFY_FAILED。
