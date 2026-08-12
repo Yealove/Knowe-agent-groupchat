@@ -48,25 +48,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            platform: win
-            artifact-name: knowe-windows
-            artifact-path: |
-              release/*.exe
-              release/latest*.yml
+          # [v1.0.33] 暂只编译 macOS（Windows/Linux 调试中，后续启用）
+          # - os: windows-latest
+          #   platform: win
+          #   artifact-name: knowe-windows
+          #   artifact-path: |
+          #     release/*.exe
+          #     release/latest*.yml
           - os: macos-latest
             platform: mac
             artifact-name: knowe-macos
             artifact-path: |
               release/*.dmg
               release/mac/latest*.yml
-          - os: ubuntu-22.04
-            platform: linux
-            artifact-name: knowe-linux
-            artifact-path: |
-              release/*.AppImage
-              release/*.deb
-              release/linux/latest*.yml
+          # - os: ubuntu-22.04
+          #   platform: linux
+          #   artifact-name: knowe-linux
+          #   artifact-path: |
+          #     release/*.AppImage
+          #     release/*.deb
+          #     release/linux/latest*.yml
 
     runs-on: ${{ matrix.os }}
     steps:
