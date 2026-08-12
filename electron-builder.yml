@@ -81,8 +81,41 @@ nsis:
 #   · 旧方案（自建 Caddy 服务器 /knowe-update/）退役。
 publish:
   provider: github
-  owner: HirezmingD
+  owner: Yealove
   repo: Knowe-agent-groupchat
 
 # 不签名（无证书）：跳过 SmartScreen 的代码签名校验阶段，后续如有证书再补
 # win.signAndEditExecutable: false
+
+
+# ──────────────────────────────────────────────
+# macOS（v1.0.33 多端）
+# 暂不签名：未签名的 dmg 用户首次打开需右键 → 打开（Gatekeeper 绕过）。
+# 仅 arm64：macos-latest 是 Apple Silicon，PyInstaller 后端为 arm64 原生产物。
+#   要支持 Intel x64，新增一个 macos-13（Intel runner）job 单独构建，
+#   或在 arm64 runner 上用 Rosetta 交叉编译 PyInstaller（可靠性不保证）。
+mac:
+  icon: build/icon.icns
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  identity: null
+  notarize: false
+
+# ──────────────────────────────────────────────
+# Linux（v1.0.33 多端）
+# AppImage（免安装、跨发行版）+ deb（Debian/Ubuntu 原生包）
+linux:
+  icon: build/icon.png
+  category: Office
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64

@@ -1,0 +1,151 @@
+# 多端构建发版（v1.0.33 多端）
+#
+# 三平台并行：Windows (nsis x64) / macOS (dmg x64+arm64) / Linux (AppImage x64)
+# 版本号取自 package.json，触发条件：push master / PR / 手动。
+#
+# 核心流程（每平台一致）：
+#   Node + Python 环境 → 前端构建 → PyInstaller 后端 → playwright 内核 → electron-builder
+name: Build Release
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: ver
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Delete existing draft release if any
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.ver.outputs.version }}"
+          echo "Cleaning up draft release for tag: $TAG"
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+
+  build:
+    needs: prepare-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            artifact-name: knowe-windows
+            artifact-path: |
+              release/*.exe
+              release/latest*.yml
+          - os: macos-latest
+            platform: mac
+            artifact-name: knowe-macos
+            artifact-path: |
+              release/*.dmg
+              release/mac/latest*.yml
+          - os: ubuntu-22.04
+            platform: linux
+            artifact-name: knowe-linux
+            artifact-path: |
+              release/*.AppImage
+              release/*.deb
+              release/linux/latest*.yml
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Generate platform icons
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "win" ]; then
+            npm run icon:ico
+          else
+            npm run icon:icns
+          fi
+
+      - name: Build frontend (electron-vite)
+        run: npm run electron:build
+
+      - name: Build backend (PyInstaller)
+        run: npm run build:backend
+
+      - name: Copy Playwright chromium into backend bundle
+        run: npm run copy:chromium
+
+      - name: Package with electron-builder
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          npx electron-builder --${{ matrix.platform }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-path }}
+          if-no-files-found: warn
+
+  publish-release:
+    needs: [prepare-release, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.prepare-release.outputs.tag }}"
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          # 汇总所有安装包
+          mkdir -p release-assets
+          find artifacts -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.yml' -o -name '*.blockmap' \) -exec cp {} release-assets/ \;
+          ls -lh release-assets/
+
+          gh release create "$TAG" release-assets/* \
+            --title "Knowe v${VERSION}" \
+            --notes "Knowe v${VERSION} — Windows / macOS / Linux" \
+            --draft \
+            --prerelease=false

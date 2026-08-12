@@ -55,7 +55,9 @@ except Exception:  # pragma: no cover - 非 Windows 构建机
 
 # icon 在 <工作副本>/build/icon.ico（spec 上一级目录）。PyInstaller 把相对路径
 # 按 spec 所在目录解析，故用 SPECPATH 推导而不是字面 'build/icon.ico'。
-_ICON = os.path.join(SPECPATH, "..", "build", "icon.ico")
+# [v1.0.33 多端] Windows 用 .ico；mac/linux 后端是无窗口后台服务，不需要图标。
+import sys  # noqa: E402
+_ICON = os.path.join(SPECPATH, "..", "build", "icon.ico") if sys.platform == 'win32' else None
 
 a = Analysis(
     ["run_backend.py"],

@@ -92,7 +92,12 @@ const BACKEND_DATA_ROOT = join(DATA_ROOT, 'backend');
 //   （源码实锤：AppAdapter.getAppCacheDir 在 win32 读 process.env.LOCALAPPDATA，懒计算）。
 //   启动早期（模块顶层）指到安装目录，让差分样本/索引/下载包全部落在
 //   <安装目录>\cache\knowe-updater，不碰系统盘。仅打包版生效，开发态不污染系统变量。
-if (app.isPackaged) {
+// [v1.0.28 R2] 更新缓存指路：electron-updater 缓存根 = %LOCALAPPDATA%\knowe-updater
+//   （源码实锤：AppAdapter.getAppCacheDir 在 win32 读 process.env.LOCALAPPDATA，懒计算）。
+//   启动早期（模块顶层）指到安装目录，让差分样本/索引/下载包全部落在
+//   <安装目录>\cache\knowe-updater，不碰系统盘。仅打包版 Windows 生效。
+//   [v1.0.33 多端] mac/linux 的 electron-updater 缓存走 ~/Library/Caches 或 ~/.cache，不受 LOCALAPPDATA 影响。
+if (app.isPackaged && process.platform === 'win32') {
   process.env.LOCALAPPDATA = join(INSTALL_ROOT, 'cache');
 }
 
@@ -115,7 +120,8 @@ const BACKEND_DIR = app.isPackaged
   ? join(process.resourcesPath, 'backend')
   : join(PROJECT_ROOT, 'backend');
 // [阶段1.5] 打包版后端 = PyInstaller 单文件产物（随 resources/backend 一起分发）。
-const BACKEND_EXE = join(BACKEND_DIR, 'KnoweBackend.exe');
+// [v1.0.33 多端] PyInstaller 产物名按平台：Windows 带 .exe，mac/linux 无扩展名。
+const BACKEND_EXE = join(BACKEND_DIR, process.platform === 'win32' ? 'KnoweBackend.exe' : 'KnoweBackend');
 const BUNDLED_RUNTIME_ROOT = app.isPackaged
   ? join(process.resourcesPath, 'runtime')
   : join(PROJECT_ROOT, 'runtime');
