@@ -49,6 +49,6 @@ Thumbs.db
 *.zip
 *.tar.gz
 *.7z
-build/
+build/*
 !build/installer.nsh
 assets/videos/compressed/
