@@ -111,6 +111,20 @@ jobs:
         shell: bash
         run: |
           npx electron-builder --${{ matrix.platform }} --publish never
+
+      - name: Ad-hoc sign macOS app bundle (无证书深签名)
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          # macOS 26 (Tahoe) 要求 bundle 内所有二进制都有签名。
+          # electron-builder 只签了 Electron 本体，PyInstaller 后端和 Playwright chromium 未签名。
+          # 对整个 .app 做 ad-hoc 深签名（- = ad-hoc identity），签名从内到外。
+          APP_DIR="release/mac-arm64"
+          if [ ! -d "$APP_DIR" ]; then APP_DIR=$(find release -maxdepth 2 -name "*.app" -print -quit | xargs dirname); fi
+          APP=$(find release -maxdepth 2 -name "Knowe.app" -print -quit)
+          if [ -z "$APP" ]; then echo "Knowe.app not found"; exit 1; fi
+          echo "Ad-hoc signing: $APP"
+          codesign --force --deep --sign - "$APP"
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
