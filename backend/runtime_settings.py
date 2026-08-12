@@ -840,21 +840,46 @@ def _probe_once(url: str, headers: dict[str, str], body: dict[str, Any],
     """
     [v0.44.3] 发一次最小探测。返回 (HTTP 状态码, 网络层错误串, 延迟 ms)。
     2xx → (200, None, ms)；HTTP 错误 → (code, None, ms)；连不上/超时 → (None, 原因, None)。
+
+    [v1.0.33 SSL] 改用 httpx 替代 urllib：PyInstaller 冻结环境下 urllib 的
+    ssl.create_default_context() 找不到系统 CA 仓库（尤其代理注入的自签名 CA），
+    而 httpx 显式用 certifi → 与实际 Agent 调用走同一条 SSL 路径，不会误报。
     """
-    # [v0.44.3 对账] 自报家门的 UA：urllib 默认的 `Python-urllib/*` 会被 Cloudflare 的
-    #   Browser Integrity Check（error 1010）直接拒掉——hermes 上游为同一原因专门设了
-    #   自定义 UA（models.py `_HERMES_USER_AGENT` 的注释）。OpenRouter 等前置了
-    #   Cloudflare 的厂商若拦下默认 UA，测试会误报「连不上」，而 Agent 实际调用
-    #   （httpx，另一个 UA）却是通的——测试不许这样冤枉一条好链路。
+    # [v0.44.3 对账] 自报家门的 UA：OpenRouter 等前置了 Cloudflare 的厂商
+    #   会拦下默认 UA，测试会误报「连不上」，而 Agent 实际调用却是通的。
     headers = {**headers}
     headers.setdefault("User-Agent", "Knowe/0.44 (settings-test)")
+    try:
+        import httpx
+    except ImportError:
+        # 极端情况（httpx 未装）：退回 urllib（老路径，至少不崩）
+        return _probe_once_urllib(url, headers, body)
+
+    started = time.monotonic()
+    try:
+        with httpx.Client(timeout=_TEST_TIMEOUT_S) as cli:
+            resp = cli.post(url, headers=headers, json=body)
+            resp.read()
+            latency = int((time.monotonic() - started) * 1000)
+            if resp.status_code < 400:
+                return (resp.status_code, None, latency)
+            return (resp.status_code, None, latency)
+    except httpx.TimeoutException:
+        return (None, msg("runtime_settings.py.008", _TEST_TIMEOUT_S=_TEST_TIMEOUT_S), None)
+    except Exception as exc:  # noqa: BLE001 — 测试端点不许把异常抛回 HTTP 层
+        return (None, msg("runtime_settings.py.009", exc=exc), None)
+
+
+def _probe_once_urllib(url: str, headers: dict[str, str], body: dict[str, Any],
+                       ) -> tuple[int | None, str | None, int | None]:
+    """urllib 降级路径（httpx 不可用时）。"""
     req = urllib.request.Request(
         url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST",
     )
     started = time.monotonic()
     try:
         with urllib.request.urlopen(req, timeout=_TEST_TIMEOUT_S) as resp:
-            resp.read(512)   # 只要能读到响应体开头就算通；内容不重要
+            resp.read(512)
             return (200, None, int((time.monotonic() - started) * 1000))
     except urllib.error.HTTPError as exc:
         return (exc.code, None, int((time.monotonic() - started) * 1000))
@@ -862,7 +887,7 @@ def _probe_once(url: str, headers: dict[str, str], body: dict[str, Any],
         return (None, str(getattr(exc, "reason", exc)), None)
     except TimeoutError:
         return (None, msg("runtime_settings.py.008", _TEST_TIMEOUT_S=_TEST_TIMEOUT_S), None)
-    except Exception as exc:  # noqa: BLE001 — 测试端点不许把异常抛回 HTTP 层
+    except Exception as exc:  # noqa: BLE001
         return (None, msg("runtime_settings.py.009", exc=exc), None)
 
 
