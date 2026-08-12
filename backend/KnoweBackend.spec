@@ -57,7 +57,16 @@ except Exception:  # pragma: no cover - 非 Windows 构建机
 # 按 spec 所在目录解析，故用 SPECPATH 推导而不是字面 'build/icon.ico'。
 # [v1.0.33 多端] Windows 用 .ico；mac/linux 后端是无窗口后台服务，不需要图标。
 import sys  # noqa: E402
-_ICON = os.path.join(SPECPATH, "..", "build", "icon.ico") if sys.platform == 'win32' else None
+
+# [v1.0.33 多端] 显式收集 certifi 的 cacert.pem（SSL 根证书），不依赖 PyInstaller hook。
+#   httpx 依赖 certifi 做 TLS 验证，漏了会报 CERTIFICATE_VERIFY_FAILED。
+_certifi_datas = []
+try:
+    import certifi
+    _cacert = certifi.where()
+    _certifi_datas = [(_cacert, "certifi")]
+except ImportError:
+    pass
 
 a = Analysis(
     ["run_backend.py"],
@@ -70,7 +79,7 @@ a = Analysis(
         ("prompts", "backend/prompts"),
         ("locales", "backend/locales"),
         ("worker_prompt.md", "backend"),
-    ],
+    ] + _certifi_datas,
     hiddenimports=[
         "playwright",
         "playwright.async_api",
@@ -79,6 +88,18 @@ a = Analysis(
         "duckduckgo_search",
         "yaml",
         "dotenv",
+        # [v1.0.33 多端] httpx 部分在 try/except 中动态导入，PyInstaller 静态分析可能漏掉。
+        # certifi 的 cacert.pem 是 SSL 证书验证的根——漏了会报 CERTIFICATE_VERIFY_FAILED。
+        # PyInstaller 的 hook-certifi.py 在分析到 certifi 时自动收集 cacert.pem。
+        "httpx",
+        "httpcore",
+        "certifi",
+        "h11",
+        "anyio",
+        "h2",
+        "sniffio",
+        "ssl",
+        "_ssl",
     ],
     hookspath=[],
     hooksconfig={},
